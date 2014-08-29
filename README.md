@@ -49,7 +49,7 @@ if ($response->result == true) {
 }
 
 # 注意下面的防火墙位于pek2区，所以第二个参数需要明确指定
-$response = $qc1->DescribeSecurityGroups(array('security_groups.1' => 'sg-xxxxxxxx'), 'pek1');
+$response = $qc1->DescribeSecurityGroups(array('security_groups.1' => 'sg-xxxxxxxx'), 'pek2');
 if ($response->result == true) {
     print_r($response->body);
 } else {
