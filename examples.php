@@ -11,7 +11,7 @@ $qc1 = new Qingcloud('QYACCESSKEYIDEXAMPLE', 'SECRETACCESSKEY', 'pek1');
 # 如果传入1个参数，则参数为array()，包含了所有的查询参数。
 # 如果传入2个参数，则第1个参数为包含了查询参数的array()，第2个参数为zone名称
 
-# $req = $qc->[action]会返回一个 QingcloudResponse Object
+# $req = $qc1->[action]会返回一个 QingcloudResponse Object
 # 通过 $req->result 获取此次请求成功与否，成功为true，失败为false
 # 当失败时，通过$req->status_code 获取失败的状态码，通过$req->error_message获取失败的消息提示
 # 当成功时，通过$req->body获取返回的数据array。可以通过$req->body['instance_id']等数组获取具体数据。
@@ -43,7 +43,7 @@ if ($response->result == true) {
 }
 
 # 注意下面的防火墙位于pek2区，所以第二个参数需要明确指定
-$response = $qc1->DescribeSecurityGroups(array('security_groups.1' => 'sg-xxxxxxxx'), 'pek1');
+$response = $qc1->DescribeSecurityGroups(array('security_groups.1' => 'sg-xxxxxxxx'), 'pek2');
 if ($response->result == true) {
     print_r($response->body);
 } else {
