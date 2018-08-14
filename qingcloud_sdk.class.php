@@ -24,7 +24,7 @@ class QingcloudResponse {
             $this->result = false;
             $this->status_code = $resp['ret_code'];
             $this->error_message = $resp['message'];
-            $this->body = null;            
+            $this->body = null;
         }
     }
 }
@@ -126,6 +126,10 @@ class Qingcloud {
         'UploadUserDataAttachment',
     );
 
+    static $POST_ACTIONS = array(
+        'UploadUserDataAttachment',
+    );
+
     public function __construct($access_key, $secret, $default_zone='', $timeout=10) {
         $this->access_key = $access_key;
         $this->secret = $secret;
@@ -133,18 +137,26 @@ class Qingcloud {
         $this->default_zone = $default_zone;
     }
 
-    private function request($url){
-     
+    private function request($url, $method='GET', $body='', $headers=array()){
+
         if (!function_exists('curl_init')){
             die('Sorry php library cURL is not installed!');
         }
-     
+
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Qingcloud/php_library1.0');
-        curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+
+        if ($method == 'GET') {
+            curl_setopt($ch, CURLOPT_HEADER, 0);
+        } else if ($method == 'POST') {
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
+
         $output = curl_exec($ch);
         curl_close($ch);
         return $output;
@@ -156,12 +168,14 @@ class Qingcloud {
             throw new Exception("The API action $action is not exist");
         }
 
+        $method = in_array($action, self::$POST_ACTIONS) ? 'POST' : 'GET';
+
         if (count($args) === 0) {
-            return $this->_action($action);
+            return $this->_action($action, $method);
         } else if (count($args) === 1) {
-            return $this->_action($action, $args[0]);
+            return $this->_action($action, $method, $args[0]);
         } else if (count($args) === 2) {
-            return $this->_action($action, $args[0], $args[1]);
+            return $this->_action($action, $method, $args[0], $args[1]);
         }
     }
 
@@ -178,10 +192,10 @@ class Qingcloud {
         $sig = hash_hmac('sha256', $raw_sign, $this->secret, $raw_output=true);
         $sigb64 = base64_encode($sig);
         $urlsigb64 = urlencode($sigb64);
-        return "$raw_param&signature=$urlsigb64";
+        return array($raw_param, $urlsigb64);
     }
 
-    private function get_sign_url($params, $action, $zone, $url='iaas') {
+    private function authorize($method, $params, $action, $zone, $url='iaas') {
         $url = '/' . trim($url, '/') . '/';
 
         $params['action'] = $action;
@@ -193,14 +207,33 @@ class Qingcloud {
             $params['zone'] = $zone;
         }
 
-        $raw_param = $this->_sign('GET', $url, $params);
-        return self::$API_ENDPOINT . "$url?$raw_param";
+        list($raw_param, $sign) = $this->_sign($method, $url, $params);
+
+        if ($method == 'GET') {
+            return self::$API_ENDPOINT . "$url?$raw_param&signature=$sign";
+        } else if ($method == 'POST') {
+            $body = "$raw_param&signature=$sign";
+            $headers = array(
+              'Content-Length' => strlen($body),
+              'Content-Type' => 'application/x-www-form-urlencoded',
+              'Accept' => 'text/plain',
+              'Connection' => 'Keep-Alive'
+            );
+            return array(self::$API_ENDPOINT . "$url", $body, $headers);
+        }
     }
 
-    private function _action($action, $params=array(), $zone='') {
-        $response = $this->request(
-            $this->get_sign_url($params, $action, $zone)
-        );
+    private function _action($action, $method='GET', $params=array(), $zone='') {
+        if ($method == 'GET') {
+            $response = $this->request(
+              $this->authorize($method, $params, $action, $zone)
+            );
+        } else if ($method == 'POST') {
+            list($url, $body, $headers) = $this->authorize(
+              $method, $params, $action, $zone
+            );
+            $response = $this->request($url, $method, $body, $headers);
+        }
         return new QingcloudResponse(json_decode($response, true));
     }
 
